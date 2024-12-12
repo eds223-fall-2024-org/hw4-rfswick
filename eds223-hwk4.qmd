@@ -1,0 +1,185 @@
+---
+title: "EDS 223 Homework Assignment 4"
+subtitle: "Prioritizing potential aquaculture"
+author: "Rachel Swick"
+date: last-modified
+execute:
+  warning: false
+  message: false
+format:
+  html:
+    toc: true
+    code-fold: true
+editor_options: 
+  chunk_output_type: console
+---
+
+## Project Background
+
+Marine aquaculture has the potential to play an important role in the global food supply as a more sustainable protein option than land-based meat production.1 Gentry et al. mapped the potential for marine aquaculture globally based on multiple constraints, including ship traffic, dissolved oxygen, and bottom depth. They found that global seafood demand could be met using less than 0.015% of the global ocean area.2
+
+## Learning Goals
+
+This assignment will reinforce key concepts in geospatial analysis by practicing the following:
+
+- combining vector/raster data
+- resampling raster data
+- masking raster data
+- map algebra
+
+## About the Data
+
+## Load Packages and Import Data
+```{r}
+# Load packages
+library(terra)
+library(stars)
+library(tidyverse)
+library(tmap)
+library(kableExtra) 
+library(sf)
+library(here)
+library(testthat)
+library(devtools)
+library(remotes)
+library(patchwork)
+```
+
+```{r}
+# West Coast EEZ Data
+west_coast_eez <- read_sf(here("data", "wc_regions_clean.shp"))
+
+# Bathymetry (depth) Data
+bathymetry <- rast("data/depth.tif")
+
+# Average Annual SST Data for 2008 to 2012
+sst_2008 <- rast("data/average_annual_sst_2008.tif")
+sst_2009 <- rast("data/average_annual_sst_2009.tif")
+sst_2010 <- rast("data/average_annual_sst_2010.tif")
+sst_2011 <- rast("data/average_annual_sst_2011.tif")
+sst_2012 <- rast("data/average_annual_sst_2012.tif")
+```
+
+```{r}
+# Combine SST data into a raster stack
+sst_stack <- merge(sst_2008, sst_2009, sst_2010, sst_2011, sst_2012)
+```
+
+## Ensure Matching Coordinate Reference Systems (CRS)
+
+An accurate map can not be created without first ensuring all spatial objects are using the same CRS.
+
+```{r}
+# Create list of all spatial objects
+spatial_objects <- list(west_coast_eez,
+                        bathymetry,
+                        sst_stack)
+
+# Check if all spatial objects have the same CRS
+# If not, determine whether it is a vector or raster object
+# Update CRS based on object type
+for (i in 2:length(spatial_objects)) {
+  if (inherits(spatial_objects[[i]], "SpatRaster") && 
+      !identical(crs(spatial_objects[[i]]), spatial_objects[[1]])) {
+    spatial_objects[[i]] <- project(spatial_objects[[i]], crs(spatial_objects[[1]]))
+    warning("The CRS has been transformed to match.")
+  }
+  else if (inherits(spatial_objects[[i]], c("sf", "tbl_df", "tbl", "data.frame")) &&
+      st_crs(spatial_objects[[i]]) != st_crs(spatial_objects[[1]])) {
+    spatial_objects[[i]] <- st_transform(spatial_objects[[i]], st_crs(spatial_objects[[1]]))
+    warning("The CRS has been transformed to match.")
+  }
+  else {
+    print("The CRS Match.")
+  }
+}
+
+# Check that all spatial objects have been transformed
+for (i in 2:length(spatial_objects)) {
+  print(st_crs(spatial_objects[[i]]) == st_crs(spatial_objects[[1]]))
+}
+```
+
+## Process SST and Depth Data
+
+Process the SST and depth data so that they can be combined into a single raster object. This is necessary because the SST and depth data have slightly different resolutions, extents, and positions.
+
+```{r}
+# Mean SST from 2008 to 2012
+mean_sst <- mean(sst_stack, na.rm = TRUE)
+
+# Convert mean SST from Kelvin to Celsius
+mean_sst_c <- mean_sst - 273.15
+
+# Crop depth raster to the extent of average sst raster
+bathymetry_crop <- crop(bathymetry, mean_sst_c) 
+
+# Resample depth data to match the resolution of the average sst data
+bathymetry_resample <- resample(bathymetry_crop, y = mean_sst_c, method = "near")
+
+# Combine depth and average sst
+sst_depth_stack <- merge(bathymetry_resample, mean_sst_c)
+```
+
+## Find Suitable Locations
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

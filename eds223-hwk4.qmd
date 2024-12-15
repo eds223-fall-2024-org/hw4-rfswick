@@ -16,7 +16,7 @@ editor_options:
 
 ## Project Background
 
-Marine aquaculture has the potential to play an important role in the global food supply as a more sustainable protein option than land-based meat production.1 Gentry et al. mapped the potential for marine aquaculture globally based on multiple constraints, including ship traffic, dissolved oxygen, and bottom depth. They found that global seafood demand could be met using less than 0.015% of the global ocean area.2
+Marine aquaculture has the potential to play an important role in the global food supply as a more sustainable protein option than land-based meat production.[1] Gentry et al. mapped the potential for marine aquaculture globally based on multiple constraints, including ship traffic, dissolved oxygen, and bottom depth. They found that global seafood demand could be met using less than 0.015% of the global ocean area.[2]
 
 ## Learning Goals
 
@@ -62,7 +62,7 @@ sst_2012 <- rast("data/average_annual_sst_2012.tif")
 
 ```{r}
 # Combine SST data into a raster stack
-sst_stack <- merge(sst_2008, sst_2009, sst_2010, sst_2011, sst_2012)
+sst_stack <- c(sst_2008, sst_2009, sst_2010, sst_2011, sst_2012)
 ```
 
 ## Ensure Matching Coordinate Reference Systems (CRS)
@@ -121,18 +121,97 @@ bathymetry_resample <- resample(bathymetry_crop, y = mean_sst_c, method = "near"
 sst_depth_stack <- merge(bathymetry_resample, mean_sst_c)
 ```
 
-## Find Suitable Locations
+## Find Suitable Locations using a Function
 
 ```{r}
+# Function to determine EEZ area w/ suitable habitat
+
+suitability_function <- function(species_name, min_sst, max_sst, min_depth, max_depth) {
+  
+  # create reclassification matrix for temp
+  rcl_temp <- matrix(c(-Inf, min_sst, 0, # group 1 temp too cold
+                     min_sst, max_sst, 1, # group 2 temp in range
+                     max_sst, Inf, 0), # group 3 temp too warm
+                     ncol = 3, byrow = TRUE)
+
+  # use reclassification matrix to reclassify temperature raster
+  temp_range <- terra::classify(mean_sst_c, rcl = rcl_temp)
+
+  # create reclassification matrix for temp
+  rcl_depth <- matrix(c(-max_depth, min_depth, 1, # group 1 depth in range
+                      -Inf, -max_depth, 0,
+                      min_depth, Inf, 0), # group 2 depth too deep
+                      ncol = 3, byrow = TRUE)
+
+  # use reclassification matrix to reclassify depth raster
+  depth_range <- terra::classify(bathymetry_resample, rcl = rcl_depth)
+  
+  # Stack the suitable range rasters
+  ranges <- c(depth_range, temp_range)
+
+  # Create function for multiplying raster layers
+  fun=function(x,y){return(x*y)}
+
+  # Apply function to stacked raster of suitable temp and depth ranges
+  suitable_range <- lapp(ranges, fun)
+
+  # Set 0 values to NA
+  suitable_range[suitable_range == 0] <- NA
+  
+  # Make all values in `suitable_range` that are not in an EEZ, NA
+  suitable_range_eez <- mask(suitable_range, west_coast_eez)
+
+  # Make the EEZ data a raster
+  raster_eez <- rasterize(west_coast_eez, suitable_range, "rgn")
+
+  # Calculate the area of each cell in the raster
+  cell_area <- cellSize(suitable_range_eez, 
+                      mask = TRUE, 
+                      unit = "km")
+
+  # Total area of suitable EEZ
+  eez_area <- data.frame(zonal(cell_area*suitable_range_eez,
+                             z = raster_eez,
+                             fun = "sum",
+                             na.rm = TRUE))
+
+  # Geodataframe for mapping
+  map_df <- left_join(west_coast_eez, eez_area, by = 'rgn') %>%
+    select('rgn', 'area', 'area_km2') %>%
+    mutate(area_rounded_km2 = round(area, 2)) %>% 
+    mutate(labels = paste0(rgn, ": ", "\n", area_rounded_km2, " km^2"))
+  
+  # Plot
+  eez_suitability_map <- tm_shape(mean_sst_c) +
+    tm_raster(palette = "Blues",
+            title = "Mean SST (C)") +
+    tm_shape(map_df) +
+    tm_polygons(title = "Suitable Area (km^2)",
+              col = "area_rounded_km2",
+              palette = "Greens",
+              legend.show = TRUE) +
+    tm_text("labels", 
+          size = 0.7) +
+    tm_layout(main.title = paste("Suitable", species_name, "Habitat in EEZs"),  
+            main.title.size = 1.5,  
+            main.title.position = c("center", "top"),
+            legend.outside = FALSE,  
+            legend.position = c("right", "top"),
+            frame = FALSE) +
+    tm_scale_bar(position = c("left", "bottom")) +
+    tm_compass(position = c("left", "bottom"))  
+
+  return(eez_suitability_map)
+}
+
 
 ```
 
+```{r}
+suitability_function("Oyster", 11, 30, 0, 70)
 
-
-
-
-
-
+suitability_function("Dungeness crab", 3, 19, 0, 360)
+```
 
 
 

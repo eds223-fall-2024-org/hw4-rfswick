@@ -14,10 +14,6 @@ editor_options:
   chunk_output_type: console
 ---
 
-## Project Background
-
-Marine aquaculture has the potential to play an important role in the global food supply as a more sustainable protein option than land-based meat production.[1] Gentry et al. mapped the potential for marine aquaculture globally based on multiple constraints, including ship traffic, dissolved oxygen, and bottom depth. They found that global seafood demand could be met using less than 0.015% of the global ocean area.[2]
-
 ## Learning Goals
 
 This assignment will reinforce key concepts in geospatial analysis by practicing the following:
@@ -27,9 +23,8 @@ This assignment will reinforce key concepts in geospatial analysis by practicing
 - masking raster data
 - map algebra
 
-## About the Data
-
 ## Load Packages and Import Data
+
 ```{r}
 # Load packages
 library(terra)
@@ -121,17 +116,30 @@ bathymetry_resample <- resample(bathymetry_crop, y = mean_sst_c, method = "near"
 sst_depth_stack <- merge(bathymetry_resample, mean_sst_c)
 ```
 
-## Find Suitable Locations using a Function
+## Find Suitable Areas within EEZs using a Function
+
+Create a map of EEZ regions colored by the amount of suitable area within the EEZ for a particular spcecies. This function will take 5 arguments:
+
+`species_name`: The name of the species of interest
+
+`min_temp`: The minimum temperature (C) a species can tolerate
+
+`max_temp`: The maximum temperature (C) a species can tolerate
+
+`min_depth`: The minimum depth (m) a species can tolerate
+
+`max_depth`: The maximum depth (m) a species can tolerate
+
+The function will return a map.
 
 ```{r}
 # Function to determine EEZ area w/ suitable habitat
-
-suitability_function <- function(species_name, min_sst, max_sst, min_depth, max_depth) {
+suitability_function <- function(species_name, min_temp, max_temp, min_depth, max_depth) {
   
   # create reclassification matrix for temp
-  rcl_temp <- matrix(c(-Inf, min_sst, 0, # group 1 temp too cold
-                     min_sst, max_sst, 1, # group 2 temp in range
-                     max_sst, Inf, 0), # group 3 temp too warm
+  rcl_temp <- matrix(c(-Inf, min_temp, 0, # group 1 temp too cold
+                     min_temp, max_temp, 1, # group 2 temp in range
+                     max_temp, Inf, 0), # group 3 temp too warm
                      ncol = 3, byrow = TRUE)
 
   # use reclassification matrix to reclassify temperature raster
@@ -191,15 +199,16 @@ suitability_function <- function(species_name, min_sst, max_sst, min_depth, max_
               palette = "Greens",
               legend.show = TRUE) +
     tm_text("labels", 
-          size = 0.7) +
-    tm_layout(main.title = paste("Suitable", species_name, "Habitat in EEZs"),  
-            main.title.size = 1.5,  
-            main.title.position = c("center", "top"),
-            legend.outside = FALSE,  
-            legend.position = c("right", "top"),
-            frame = FALSE) +
-    tm_scale_bar(position = c("left", "bottom")) +
-    tm_compass(position = c("left", "bottom"))  
+          size = 0.6) +
+    tm_layout(main.title = paste("Suitable", species_name, "EEZ Habitat"),  
+              main.title.size = 1,  
+              main.title.position = c("center", "top"),
+              legend.outside = FALSE,  
+              legend.position = c("right", "top"),
+              frame = FALSE) +
+    tm_compass(position = c("left", "bottom")) +
+    tm_scale_bar(position = c("left", "bottom"))
+    
 
   return(eez_suitability_map)
 }
@@ -207,14 +216,27 @@ suitability_function <- function(species_name, min_sst, max_sst, min_depth, max_
 
 ```
 
+## Use the function
+
+Use the suitability function to create a map of the area of suitable habitat within different west coast EEZs for Oysters and Dungeness crab.
+
 ```{r}
+# Oysters
 suitability_function("Oyster", 11, 30, 0, 70)
 
+# Dungeness crab
 suitability_function("Dungeness crab", 3, 19, 0, 360)
 ```
 
 
+## References
 
+| Data | Citation | Link |
+|------------------|------------------|------------------|
+| Exclusive Economic Zones (EEZ) | Marine regions. (n.d.). https://www.marineregions.org/eez.php | [EEZ Link](https://www.marineregions.org/eez.php) 
+| Gridded Bathymetry Data | General Bathymetric Chart of the Oceans. (n.d.). Gridded bathymetry data (general bathymetric chart of the oceans). GEBCO. https://www.gebco.net/data_and_products/gridded_bathymetry_data/#area | [Bathymetry Link](https://www.gebco.net/data_and_products/gridded_bathymetry_data/#area) 
+| Daily Global 5km Satellite Sea Surface Temperature Anomaly | Watch, N. C. R. (n.d.). Daily Global 5km Satellite Sea Surface Temperature Anomaly (version 3.1). NOAA Coral Reef Watch. https://coralreefwatch.noaa.gov/product/5km/index_5km_ssta.php | [SST Link](https://coralreefwatch.noaa.gov/product/5km/index_5km_ssta.php) 
+| Dungeness crab Data | Metacarcinus magister, Dungeness crab: fisheries. SeaLifeBase. (n.d.). https://www.sealifebase.ca/summary/Metacarcinus-magister.html | [Crab Link](https://www.sealifebase.ca/summary/Metacarcinus-magister.html)
 
 
 
